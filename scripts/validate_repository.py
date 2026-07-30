@@ -37,10 +37,10 @@ REQUIRED_FILES = [
 ]
 PYODIDE_KERNEL_PLUGIN = "@jupyterlite/pyodide-kernel-extension:kernel"
 REQUIRED_PYODIDE_PACKAGES = ["python-dateutil", "pandas", "scikit-learn"]
-REQUIRED_PYODIDE_PREFETCH_PACKAGES = ["comm", "ipykernel", "pyodide-kernel", "ipython"]
-PYODIDE_CORE_TARBALL_URL = f"https://github.com/pyodide/pyodide/releases/download/{KERNEL_PYODIDE_VERSION}/pyodide-core-{KERNEL_PYODIDE_VERSION}.tar.bz2"
-EXPECTED_PYODIDE_URL = "./pyodide/pyodide.mjs"
-EXPECTED_PYODIDE_LOCK_URL = "./pyodide-lock/pyodide-lock.json"
+COMM_WHEEL_URL = "https://files.pythonhosted.org/packages/60/97/891a0971e1e4a8c5d2b20bbe0e524dc04548d2307fee33cdeba148fd4fc7/comm-0.2.3-py3-none-any.whl"
+PYODIDE_DISTRIBUTION_URL = f"https://github.com/pyodide/pyodide/releases/download/{KERNEL_PYODIDE_VERSION}/pyodide-{KERNEL_PYODIDE_VERSION}.tar.bz2"
+EXPECTED_PYODIDE_URL = "./static/pyodide/pyodide.mjs"
+EXPECTED_PIPLITE_INDEX_URL = "./pypi/all.json"
 
 
 def normalize_package_name(name: str) -> str:
@@ -108,17 +108,17 @@ def validate_jupyterlite_config(path: Path) -> None:
     plugin_settings = pyodide_kernel_settings(config)
 
     assert plugin_settings, f"Missing litePluginSettings for {PYODIDE_KERNEL_PLUGIN} in {path}"
-    assert "pyodideUrl" not in plugin_settings, f"Source config should not override the Pyodide runtime URL in {path}"
+    assert plugin_settings.get("pyodideUrl") == EXPECTED_PYODIDE_URL, f"Source config should point at the bundled Pyodide runtime in {path}"
     assert plugin_settings.get("disablePyPIFallback") is True, f"PyPI fallback should be disabled in {path}"
 
     packages = plugin_settings.get("loadPyodideOptions", {}).get("packages", [])
     assert packages == REQUIRED_PYODIDE_PACKAGES, f"Unexpected preloaded Pyodide packages in {path}: {packages}"
 
     pyodide_addon = config.get("PyodideAddon", {})
-    assert pyodide_addon.get("pyodide_url") == PYODIDE_CORE_TARBALL_URL, f"Unexpected Pyodide distribution URL in {path}"
+    assert pyodide_addon.get("pyodide_url") == PYODIDE_DISTRIBUTION_URL, f"Unexpected Pyodide distribution URL in {path}"
 
-    pyodide_lock_addon = config.get("PyodideLockAddon", {})
-    assert pyodide_lock_addon.get("enabled") is True, f"PyodideLockAddon must be enabled in {path}"
+    piplite_addon = config.get("PipliteAddon", {})
+    assert piplite_addon.get("piplite_urls") == [COMM_WHEEL_URL], f"Unexpected PipliteAddon wheel URLs in {path}"
 
 
 def validate_pages(root: Path) -> None:
@@ -139,29 +139,32 @@ def validate_built_site(site_dir: Path) -> None:
 
     assert plugin_settings, f"Missing litePluginSettings for {PYODIDE_KERNEL_PLUGIN} in {built_config_path}"
     assert plugin_settings.get("pyodideUrl") == EXPECTED_PYODIDE_URL, f"Built site should serve a bundled Pyodide runtime from {built_config_path}"
-
     built_load_options = plugin_settings.get("loadPyodideOptions", {})
-    assert built_load_options.get("lockFileURL") == EXPECTED_PYODIDE_LOCK_URL, f"Built site should serve a bundled Pyodide lockfile from {built_config_path}"
-
     built_packages = {normalize_package_name(package) for package in built_load_options.get("packages", [])}
-    expected_packages = {normalize_package_name(package) for package in [*REQUIRED_PYODIDE_PACKAGES, *REQUIRED_PYODIDE_PREFETCH_PACKAGES]}
+    expected_packages = {normalize_package_name(package) for package in REQUIRED_PYODIDE_PACKAGES}
     missing_packages = expected_packages - built_packages
     assert not missing_packages, f"Built site is missing preloaded Pyodide packages in {built_config_path}: {sorted(missing_packages)}"
+    piplite_urls = plugin_settings.get("pipliteUrls", [])
+    assert len(piplite_urls) == 1 and piplite_urls[0].startswith(EXPECTED_PIPLITE_INDEX_URL), f"Built site should expose the local piplite wheel index from {built_config_path}"
 
-    bundled_pyodide_dir = lite_dir / "pyodide"
+    bundled_pyodide_dir = lite_dir / "static" / "pyodide"
     bundled_runtime_lock = bundled_pyodide_dir / "pyodide-lock.json"
-    generated_runtime_lock = lite_dir / "pyodide-lock" / "pyodide-lock.json"
     assert (bundled_pyodide_dir / "pyodide.mjs").exists(), f"Missing bundled Pyodide runtime in {bundled_pyodide_dir}"
     assert bundled_runtime_lock.exists(), f"Missing bundled Pyodide metadata lockfile in {bundled_runtime_lock}"
-    assert generated_runtime_lock.exists(), f"Missing generated Pyodide runtime lockfile in {generated_runtime_lock}"
+    bundled_runtime_packages = package_names_from_lock(bundled_runtime_lock)
+    missing_runtime_packages = {normalize_package_name(package) for package in REQUIRED_PYODIDE_PACKAGES} - bundled_runtime_packages
+    assert not missing_runtime_packages, f"Missing required Pyodide packages in {bundled_runtime_lock}: {sorted(missing_runtime_packages)}"
+    bundled_runtime_lock_data = load_json(bundled_runtime_lock)
+    for package_name in REQUIRED_PYODIDE_PACKAGES:
+        file_name = bundled_runtime_lock_data["packages"][package_name]["file_name"]
+        assert not str(file_name).startswith("http"), f"Required Pyodide package should be served locally in {bundled_runtime_lock}: {package_name} -> {file_name}"
 
-    for lock_path in [bundled_runtime_lock, generated_runtime_lock]:
-        lock_packages = package_names_from_lock(lock_path)
-        missing_runtime_packages = {normalize_package_name(package) for package in REQUIRED_PYODIDE_PACKAGES} - lock_packages
-        assert not missing_runtime_packages, f"Missing required Pyodide packages in {lock_path}: {sorted(missing_runtime_packages)}"
-
-    generated_lock_packages = package_names_from_lock(generated_runtime_lock)
-    assert normalize_package_name("comm") in generated_lock_packages, f"Generated Pyodide lockfile is missing 'comm' in {generated_runtime_lock}"
+    piplite_dir = lite_dir / "pypi"
+    piplite_index = piplite_dir / "all.json"
+    assert piplite_index.exists(), f"Missing local piplite index in {piplite_index}"
+    piplite_index_text = piplite_index.read_text(encoding="utf-8")
+    assert "comm-0.2.3-py3-none-any.whl" in piplite_index_text, f"Missing bundled comm wheel from {piplite_index}"
+    assert any(wheel.name.startswith("comm-0.2.3-") for wheel in piplite_dir.glob("*.whl")), f"Missing bundled comm wheel in {piplite_dir}"
 
 
 def main() -> None:
