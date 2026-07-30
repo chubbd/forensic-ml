@@ -24,6 +24,7 @@ def validate_notebook(path: Path) -> None:
     assert any(cell.get("cell_type") == "code" for cell in cells), f"Notebook needs code cells: {path}"
     source_text = "\n".join("".join(cell.get("source", [])) for cell in cells)
     assert "piplite.install" in source_text, f"Notebook should install browser-side packages: {path}"
+    assert "python-dateutil" in source_text, f"Notebook should install python-dateutil for pandas in {path}"
     if path.name == "forensic_classification_challenge.ipynb":
         for expected_snippet in ["MODEL_CANDIDATES", "class_label", "mystery_samples.csv", "training_samples.csv"]:
             assert expected_snippet in source_text, f"Missing '{expected_snippet}' in {path}"
