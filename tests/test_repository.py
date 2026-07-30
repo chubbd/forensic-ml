@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from scripts.validate_repository import validate_jupyterlite_config
+from scripts.validate_repository import validate_built_site, validate_jupyterlite_config
 from scripts.validate_notebooks import validate_notebook
 
 
@@ -142,10 +142,15 @@ def test_jupyterlite_config_requires_preloaded_pyodide_packages(tmp_path) -> Non
     config_path.write_text(
         json.dumps(
             {
+                "PyodideAddon": {
+                    "pyodide_url": "https://github.com/pyodide/pyodide/releases/download/314.0.1/pyodide-core-314.0.1.tar.bz2"
+                },
+                "PyodideLockAddon": {
+                    "enabled": True
+                },
                 "jupyter-config-data": {
                     "litePluginSettings": {
                         "@jupyterlite/pyodide-kernel-extension:kernel": {
-                            "pyodideUrl": "https://cdn.jsdelivr.net/pyodide/v314.0.1/full/pyodide.mjs",
                             "disablePyPIFallback": True,
                             "loadPyodideOptions": {
                                 "packages": ["pandas", "scikit-learn"],
@@ -164,3 +169,95 @@ def test_jupyterlite_config_requires_preloaded_pyodide_packages(tmp_path) -> Non
         assert "Unexpected preloaded Pyodide packages" in str(exc)
     else:
         raise AssertionError("validate_jupyterlite_config should require the preloaded Pyodide package set")
+
+
+def test_jupyterlite_config_rejects_runtime_cdn_override(tmp_path) -> None:
+    config_path = tmp_path / "jupyter-lite.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "PyodideAddon": {
+                    "pyodide_url": "https://github.com/pyodide/pyodide/releases/download/314.0.1/pyodide-core-314.0.1.tar.bz2"
+                },
+                "PyodideLockAddon": {
+                    "enabled": True
+                },
+                "jupyter-config-data": {
+                    "litePluginSettings": {
+                        "@jupyterlite/pyodide-kernel-extension:kernel": {
+                            "pyodideUrl": "https://cdn.jsdelivr.net/pyodide/v314.0.1/full/pyodide.mjs",
+                            "disablePyPIFallback": True,
+                            "loadPyodideOptions": {
+                                "packages": ["python-dateutil", "pandas", "scikit-learn"],
+                            },
+                        }
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        validate_jupyterlite_config(config_path)
+    except AssertionError as exc:
+        assert "should not override the Pyodide runtime URL" in str(exc)
+    else:
+        raise AssertionError("validate_jupyterlite_config should reject remote Pyodide runtime overrides")
+
+
+def test_built_site_validation_requires_local_pyodide_runtime_and_lock(tmp_path) -> None:
+    site_dir = tmp_path / "site"
+    lite_dir = site_dir / "lite"
+    (lite_dir / "lab").mkdir(parents=True)
+    (lite_dir / "pyodide").mkdir(parents=True)
+    (lite_dir / "pyodide-lock").mkdir(parents=True)
+    (site_dir / ".nojekyll").write_text("", encoding="utf-8")
+    (site_dir / "index.html").write_text("<html></html>", encoding="utf-8")
+    (lite_dir / "lab" / "index.html").write_text("<html></html>", encoding="utf-8")
+    (lite_dir / "pyodide" / "pyodide.mjs").write_text("// runtime", encoding="utf-8")
+
+    lock_packages = {
+        package_name: {"name": package_name, "version": "1.0.0", "file_name": f"{package_name}.whl", "sha256": package_name}
+        for package_name in [
+            "python-dateutil",
+            "pandas",
+            "scikit-learn",
+            "comm",
+            "ipykernel",
+            "pyodide-kernel",
+            "ipython",
+        ]
+    }
+    lock_text = json.dumps({"packages": lock_packages})
+    (lite_dir / "pyodide" / "pyodide-lock.json").write_text(lock_text, encoding="utf-8")
+    (lite_dir / "pyodide-lock" / "pyodide-lock.json").write_text(lock_text, encoding="utf-8")
+    (lite_dir / "jupyter-lite.json").write_text(
+        json.dumps(
+            {
+                "jupyter-config-data": {
+                    "litePluginSettings": {
+                        "@jupyterlite/pyodide-kernel-extension:kernel": {
+                            "pyodideUrl": "./pyodide/pyodide.mjs",
+                            "disablePyPIFallback": True,
+                            "loadPyodideOptions": {
+                                "lockFileURL": "./pyodide-lock/pyodide-lock.json",
+                                "packages": [
+                                    "python-dateutil",
+                                    "pandas",
+                                    "scikit-learn",
+                                    "comm",
+                                    "ipykernel",
+                                    "pyodide-kernel",
+                                    "ipython",
+                                ],
+                            },
+                        }
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    validate_built_site(site_dir)
