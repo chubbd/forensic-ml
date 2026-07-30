@@ -233,7 +233,23 @@ def test_built_site_validation_requires_local_pyodide_runtime_and_lock(tmp_path)
     }
     lock_text = json.dumps({"packages": lock_packages})
     (lite_dir / "static" / "pyodide" / "pyodide-lock.json").write_text(lock_text, encoding="utf-8")
-    (lite_dir / "pypi" / "all.json").write_text('{"comm": [{"filename": "comm-0.2.3-py3-none-any.whl"}]}', encoding="utf-8")
+    (lite_dir / "pypi" / "all.json").write_text(
+        json.dumps(
+            {
+                "comm": {
+                    "releases": {
+                        "0.2.3": [
+                            {
+                                "filename": "comm-0.2.3-py3-none-any.whl",
+                                "url": "./comm-0.2.3-py3-none-any.whl",
+                            }
+                        ]
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
     (lite_dir / "pypi" / "comm-0.2.3-py3-none-any.whl").write_text("", encoding="utf-8")
     (lite_dir / "jupyter-lite.json").write_text(
         json.dumps(
@@ -241,16 +257,7 @@ def test_built_site_validation_requires_local_pyodide_runtime_and_lock(tmp_path)
                 "jupyter-config-data": {
                     "litePluginSettings": {
                         "@jupyterlite/pyodide-kernel-extension:kernel": {
-                            "pyodideUrl": "./static/pyodide/pyodide.mjs",
-                            "disablePyPIFallback": True,
-                            "pipliteUrls": ["./pypi/all.json"],
-                            "loadPyodideOptions": {
-                                "packages": [
-                                    "python-dateutil",
-                                    "pandas",
-                                    "scikit-learn",
-                                ],
-                            },
+                            "pipliteUrls": ["./pypi/all.json?sha256=test"],
                         }
                     }
                 }
