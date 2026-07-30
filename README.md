@@ -32,7 +32,7 @@ The JupyterLite build pins the Pyodide runtime URL and preloads `python-dateutil
 - `content/notebooks/package_diagnostics.ipynb` - package/environment diagnostics
 - `content/data/training_samples.csv` - labelled example dataset
 - `content/data/mystery_samples.csv` - unlabelled example mystery samples
-- `jupyter-lite.json` - runtime JupyterLite and Pyodide kernel settings
+- `jupyter-lite.json` - build and runtime JupyterLite/Pyodide kernel settings
 - `scripts/generate_synthetic_data.py` - deterministic dataset generator
 - `scripts/validate_repository.py` - repository and build validation
 - `scripts/validate_notebooks.py` - notebook structure validation
@@ -56,7 +56,7 @@ python -m pip install -r requirements.txt
 python scripts/validate_repository.py --root .
 python scripts/validate_notebooks.py --root .
 pytest -q
-rm -rf site && mkdir -p site && cp -R pages/. site/ && jupyter lite build --config jupyter_lite_config.json --output-dir site/lite
+rm -rf site && mkdir -p site && cp -R pages/. site/ && touch site/.nojekyll && jupyter lite build --config jupyter-lite.json --output-dir site/lite
 ```
 
 Then open `site/index.html` with any static hosting environment, or push the repository to GitHub and enable **Pages -> Build and deployment -> GitHub Actions**.

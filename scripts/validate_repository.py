@@ -19,7 +19,6 @@ REQUIRED_FILES = [
     "LICENSE",
     "requirements.txt",
     "jupyter-lite.json",
-    "jupyter_lite_config.json",
     "pages/index.html",
     "content/notebooks/forensic_classification_challenge.ipynb",
     "content/notebooks/package_diagnostics.ipynb",
