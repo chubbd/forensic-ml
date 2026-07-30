@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import csv
+import json
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from scripts.validate_notebooks import validate_notebook
 
 
 def test_data_generator_creates_expected_schema(tmp_path) -> None:
@@ -62,3 +66,66 @@ def test_notebook_validation_script_passes() -> None:
         text=True,
     )
     assert "Notebook validation passed" in completed.stdout
+
+
+def test_notebook_validation_requires_python_dateutil(tmp_path) -> None:
+    notebook_path = tmp_path / "missing_dateutil.ipynb"
+    notebook_path.write_text(
+        json.dumps(
+            {
+                "cells": [
+                    {"cell_type": "markdown", "metadata": {}, "source": ["# Example\n"]},
+                    {
+                        "cell_type": "code",
+                        "metadata": {},
+                        "execution_count": None,
+                        "outputs": [],
+                        "source": [
+                            "import piplite\n",
+                            'await piplite.install(["pandas", "scikit-learn"])\n',
+                        ],
+                    },
+                ],
+                "metadata": {},
+                "nbformat": 4,
+                "nbformat_minor": 5,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        validate_notebook(notebook_path)
+    except AssertionError as exc:
+        assert "python-dateutil" in str(exc)
+    else:
+        raise AssertionError("validate_notebook should require python-dateutil")
+
+
+def test_notebook_validation_accepts_python_dateutil(tmp_path) -> None:
+    notebook_path = tmp_path / "with_dateutil.ipynb"
+    notebook_path.write_text(
+        json.dumps(
+            {
+                "cells": [
+                    {"cell_type": "markdown", "metadata": {}, "source": ["# Example\n"]},
+                    {
+                        "cell_type": "code",
+                        "metadata": {},
+                        "execution_count": None,
+                        "outputs": [],
+                        "source": [
+                            "import piplite\n",
+                            'await piplite.install(["python-dateutil", "pandas", "scikit-learn"])\n',
+                        ],
+                    },
+                ],
+                "metadata": {},
+                "nbformat": 4,
+                "nbformat_minor": 5,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    validate_notebook(notebook_path)
