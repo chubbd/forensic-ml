@@ -257,7 +257,7 @@ def test_built_site_validation_requires_local_pyodide_runtime_and_lock(tmp_path)
                 "jupyter-config-data": {
                     "litePluginSettings": {
                         "@jupyterlite/pyodide-kernel-extension:kernel": {
-                            "pipliteUrls": ["./pypi/all.json?sha256=test"],
+                            "pyodideUrl": "./static/pyodide/pyodide.mjs",
                         }
                     }
                 }
