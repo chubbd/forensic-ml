@@ -8,6 +8,16 @@ REQUIRED_NOTEBOOKS = [
     "content/notebooks/forensic_classification_challenge.ipynb",
     "content/notebooks/package_diagnostics.ipynb",
 ]
+REQUIRED_PACKAGE_IMPORTS = [
+    "import dateutil",
+    "import pandas as pd",
+    "import sklearn",
+]
+REQUIRED_VERSION_SNIPPETS = [
+    "dateutil.__version__",
+    "pd.__version__",
+    "sklearn.__version__",
+]
 
 
 def load_notebook(path: Path) -> dict:
@@ -23,13 +33,14 @@ def validate_notebook(path: Path) -> None:
     assert any(cell.get("cell_type") == "markdown" for cell in cells), f"Notebook needs markdown cells: {path}"
     assert any(cell.get("cell_type") == "code" for cell in cells), f"Notebook needs code cells: {path}"
     source_text = "\n".join("".join(cell.get("source", [])) for cell in cells)
-    assert "piplite.install" in source_text, f"Notebook should install browser-side packages: {path}"
-    assert "python-dateutil" in source_text, f"Notebook should install python-dateutil for pandas in {path}"
+    assert "piplite.install" not in source_text, f"Notebook should rely on preloaded Pyodide packages instead of piplite.install: {path}"
+    for expected_snippet in [*REQUIRED_PACKAGE_IMPORTS, *REQUIRED_VERSION_SNIPPETS]:
+        assert expected_snippet in source_text, f"Missing '{expected_snippet}' in {path}"
     if path.name == "forensic_classification_challenge.ipynb":
         for expected_snippet in ["MODEL_CANDIDATES", "class_label", "mystery_samples.csv", "training_samples.csv"]:
             assert expected_snippet in source_text, f"Missing '{expected_snippet}' in {path}"
     if path.name == "package_diagnostics.ipynb":
-        for expected_snippet in ["platform", "sklearn", "training_samples.csv"]:
+        for expected_snippet in ["platform", "diagnostics", "training_samples.csv"]:
             assert expected_snippet in source_text, f"Missing '{expected_snippet}' in {path}"
 
 

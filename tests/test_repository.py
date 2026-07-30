@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from scripts.validate_repository import validate_jupyterlite_config
 from scripts.validate_notebooks import validate_notebook
 
 
@@ -68,8 +69,8 @@ def test_notebook_validation_script_passes() -> None:
     assert "Notebook validation passed" in completed.stdout
 
 
-def test_notebook_validation_requires_python_dateutil(tmp_path) -> None:
-    notebook_path = tmp_path / "missing_dateutil.ipynb"
+def test_notebook_validation_requires_version_diagnostics(tmp_path) -> None:
+    notebook_path = tmp_path / "missing_diagnostics.ipynb"
     notebook_path.write_text(
         json.dumps(
             {
@@ -81,8 +82,9 @@ def test_notebook_validation_requires_python_dateutil(tmp_path) -> None:
                         "execution_count": None,
                         "outputs": [],
                         "source": [
-                            "import piplite\n",
-                            'await piplite.install(["pandas", "scikit-learn"])\n',
+                            "import dateutil\n",
+                            "import pandas as pd\n",
+                            "import sklearn\n",
                         ],
                     },
                 ],
@@ -97,13 +99,13 @@ def test_notebook_validation_requires_python_dateutil(tmp_path) -> None:
     try:
         validate_notebook(notebook_path)
     except AssertionError as exc:
-        assert "python-dateutil" in str(exc)
+        assert "dateutil.__version__" in str(exc)
     else:
-        raise AssertionError("validate_notebook should require python-dateutil")
+        raise AssertionError("validate_notebook should require package version diagnostics")
 
 
-def test_notebook_validation_accepts_python_dateutil(tmp_path) -> None:
-    notebook_path = tmp_path / "with_dateutil.ipynb"
+def test_notebook_validation_accepts_preloaded_package_diagnostics(tmp_path) -> None:
+    notebook_path = tmp_path / "with_diagnostics.ipynb"
     notebook_path.write_text(
         json.dumps(
             {
@@ -115,8 +117,12 @@ def test_notebook_validation_accepts_python_dateutil(tmp_path) -> None:
                         "execution_count": None,
                         "outputs": [],
                         "source": [
-                            "import piplite\n",
-                            'await piplite.install(["python-dateutil", "pandas", "scikit-learn"])\n',
+                            "import dateutil\n",
+                            "import pandas as pd\n",
+                            "import sklearn\n",
+                            'print(f\"python-dateutil {dateutil.__version__}\")\n',
+                            'print(f\"pandas {pd.__version__}\")\n',
+                            'print(f\"scikit-learn {sklearn.__version__}\")\n',
                         ],
                     },
                 ],
@@ -129,3 +135,32 @@ def test_notebook_validation_accepts_python_dateutil(tmp_path) -> None:
     )
 
     validate_notebook(notebook_path)
+
+
+def test_jupyterlite_config_requires_preloaded_pyodide_packages(tmp_path) -> None:
+    config_path = tmp_path / "jupyter-lite.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "jupyter-config-data": {
+                    "litePluginSettings": {
+                        "@jupyterlite/pyodide-kernel-extension:kernel": {
+                            "pyodideUrl": "https://cdn.jsdelivr.net/pyodide/v314.0.1/full/pyodide.mjs",
+                            "disablePyPIFallback": True,
+                            "loadPyodideOptions": {
+                                "packages": ["pandas", "scikit-learn"],
+                            },
+                        }
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        validate_jupyterlite_config(config_path)
+    except AssertionError as exc:
+        assert "Unexpected preloaded Pyodide packages" in str(exc)
+    else:
+        raise AssertionError("validate_jupyterlite_config should require the preloaded Pyodide package set")
