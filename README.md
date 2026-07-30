@@ -24,7 +24,7 @@ Reusable browser-based forensic classification challenge built with JupyterLite 
 
 All computation runs in the browser. There is no Python server, backend API, cloud notebook, or participant installation step.
 
-The JupyterLite build pins the Pyodide runtime URL and preloads `python-dateutil`, `pandas`, and `scikit-learn` at kernel startup so notebook imports do not depend on ad-hoc `piplite` installs.
+The JupyterLite build now bundles the compatible Pyodide runtime and a generated lockfile into the deployed site, then preloads `python-dateutil`, `pandas`, and `scikit-learn` at kernel startup so notebook imports do not depend on ad-hoc `piplite` installs or a browser fetch from a third-party CDN.
 
 ## Repository layout
 
@@ -57,9 +57,12 @@ python scripts/validate_repository.py --root .
 python scripts/validate_notebooks.py --root .
 pytest -q
 rm -rf site && mkdir -p site && cp -R pages/. site/ && touch site/.nojekyll && jupyter lite build --config jupyter-lite.json --output-dir site/lite
+python scripts/validate_repository.py --root . --site-dir site
 ```
 
 Then open `site/index.html` with any static hosting environment, or push the repository to GitHub and enable **Pages -> Build and deployment -> GitHub Actions**.
+
+If a browser still shows the old JupyterLite package-loading errors after a deployment, clear the site's stored browser data (or hard-refresh and reset the JupyterLite application state) so the updated bundled Pyodide runtime and lockfile are reloaded.
 
 ## GitHub Pages deployment
 
