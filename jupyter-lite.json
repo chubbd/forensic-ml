@@ -23,5 +23,10 @@
         }
       }
     }
+  },
+  "LiteBuildConfig": {
+    "contents": [
+      "content"
+    ]
   }
 }
