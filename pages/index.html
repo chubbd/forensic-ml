@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Forensic ML Challenge</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+      body {
+        margin: 0;
+        background: #f7f9fc;
+        color: #122033;
+      }
+      main {
+        max-width: 56rem;
+        margin: 0 auto;
+        padding: 3rem 1.5rem 4rem;
+      }
+      .card {
+        background: white;
+        border-radius: 1rem;
+        box-shadow: 0 10px 30px rgba(18, 32, 51, 0.08);
+        padding: 2rem;
+      }
+      h1 {
+        margin-top: 0;
+        font-size: 2.25rem;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin: 1.5rem 0;
+      }
+      a.button {
+        text-decoration: none;
+        padding: 0.8rem 1.1rem;
+        border-radius: 0.7rem;
+        background: #0057b8;
+        color: white;
+        font-weight: 700;
+      }
+      a.button.secondary {
+        background: #e7eef8;
+        color: #122033;
+      }
+      code {
+        background: #eef3fb;
+        padding: 0.1rem 0.35rem;
+        border-radius: 0.35rem;
+      }
+      ul {
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="card">
+        <h1>Forensic ML Challenge</h1>
+        <p>
+          Launch a reusable, browser-based forensic classification challenge powered by JupyterLite.
+          Everything runs locally in the participant's browser with no server, login, or software install.
+        </p>
+        <div class="actions">
+          <a class="button" href="lite/lab/index.html?path=notebooks/forensic_classification_challenge.ipynb">Launch participant notebook</a>
+          <a class="button secondary" href="lite/lab/index.html?path=notebooks/package_diagnostics.ipynb">Open diagnostics notebook</a>
+          <a class="button secondary" href="lite/lab/index.html">Browse the JupyterLite workspace</a>
+        </div>
+        <h2>How participants use it</h2>
+        <ul>
+          <li>Open the notebook and run the setup cell to install browser-side Python packages.</li>
+          <li>Inspect the labelled training dataset in <code>data/training_samples.csv</code>.</li>
+          <li>Upload replacement CSV files in the left sidebar to swap in a new challenge.</li>
+          <li>Run the built-in model search to compare candidate classifiers.</li>
+          <li>Use the best model to classify the mystery samples and reveal the next clue label.</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>
