@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -17,6 +18,7 @@ REQUIRED_FILES = [
     "README.md",
     "LICENSE",
     "requirements.txt",
+    "jupyter-lite.json",
     "jupyter_lite_config.json",
     "pages/index.html",
     "content/notebooks/forensic_classification_challenge.ipynb",
@@ -28,6 +30,9 @@ REQUIRED_FILES = [
     "scripts/validate_notebooks.py",
     "tests/test_repository.py",
 ]
+PYODIDE_KERNEL_PLUGIN = "@jupyterlite/pyodide-kernel-extension:kernel"
+PYODIDE_RUNTIME_URL = "https://cdn.jsdelivr.net/pyodide/v314.0.1/full/pyodide.mjs"
+REQUIRED_PYODIDE_PACKAGES = ["python-dateutil", "pandas", "scikit-learn"]
 
 
 def assert_exists(root: Path) -> None:
@@ -68,6 +73,19 @@ def validate_workflow(root: Path) -> None:
         assert expected_snippet in workflow_text, f"Workflow is missing '{expected_snippet}'"
 
 
+def validate_jupyterlite_config(path: Path) -> None:
+    config = json.loads(path.read_text(encoding="utf-8"))
+    jupyter_config = config.get("jupyter-config-data", {})
+    plugin_settings = jupyter_config.get("litePluginSettings", {}).get(PYODIDE_KERNEL_PLUGIN, {})
+
+    assert plugin_settings, f"Missing litePluginSettings for {PYODIDE_KERNEL_PLUGIN} in {path}"
+    assert plugin_settings.get("pyodideUrl") == PYODIDE_RUNTIME_URL, f"Unexpected Pyodide runtime URL in {path}"
+    assert plugin_settings.get("disablePyPIFallback") is True, f"PyPI fallback should be disabled in {path}"
+
+    packages = plugin_settings.get("loadPyodideOptions", {}).get("packages", [])
+    assert packages == REQUIRED_PYODIDE_PACKAGES, f"Unexpected preloaded Pyodide packages in {path}: {packages}"
+
+
 def validate_pages(root: Path) -> None:
     landing_page = (root / "pages/index.html").read_text(encoding="utf-8")
     for expected_snippet in ["Launch participant notebook", "lite/lab/index.html?path=notebooks/forensic_classification_challenge.ipynb", "package_diagnostics.ipynb"]:
@@ -92,6 +110,7 @@ def main() -> None:
     validate_csv(root / "content/data/mystery_samples.csv", expect_label=False)
     validate_generated_data(root)
     validate_workflow(root)
+    validate_jupyterlite_config(root / "jupyter-lite.json")
     validate_pages(root)
     if args.site_dir:
         validate_built_site((root / args.site_dir).resolve() if not args.site_dir.is_absolute() else args.site_dir)

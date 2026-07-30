@@ -16,7 +16,7 @@ Reusable browser-based forensic classification challenge built with JupyterLite 
 
 1. Open the GitHub Pages URL for the repository.
 2. Click **Launch participant notebook**.
-3. Run the setup cell to install browser-side packages with `piplite`.
+3. Run the environment check cell to confirm the preloaded Pyodide package versions.
 4. Inspect `data/training_samples.csv`.
 5. Upload replacement CSV files in the JupyterLite file browser if you want to swap in a new challenge.
 6. Run the model search and compare cross-validated scores.
@@ -24,12 +24,15 @@ Reusable browser-based forensic classification challenge built with JupyterLite 
 
 All computation runs in the browser. There is no Python server, backend API, cloud notebook, or participant installation step.
 
+The JupyterLite build pins the Pyodide runtime URL and preloads `python-dateutil`, `pandas`, and `scikit-learn` at kernel startup so notebook imports do not depend on ad-hoc `piplite` installs.
+
 ## Repository layout
 
 - `content/notebooks/forensic_classification_challenge.ipynb` - participant-facing workflow
 - `content/notebooks/package_diagnostics.ipynb` - package/environment diagnostics
 - `content/data/training_samples.csv` - labelled example dataset
 - `content/data/mystery_samples.csv` - unlabelled example mystery samples
+- `jupyter-lite.json` - runtime JupyterLite and Pyodide kernel settings
 - `scripts/generate_synthetic_data.py` - deterministic dataset generator
 - `scripts/validate_repository.py` - repository and build validation
 - `scripts/validate_notebooks.py` - notebook structure validation
