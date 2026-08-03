@@ -267,3 +267,64 @@ def test_built_site_validation_requires_local_pyodide_runtime_and_lock(tmp_path)
     )
 
     validate_built_site(site_dir)
+
+
+def test_built_site_validation_ignores_non_json_piplite_urls_when_local_manifest_exists(tmp_path) -> None:
+    site_dir = tmp_path / "site"
+    lite_dir = site_dir / "lite"
+    (lite_dir / "lab").mkdir(parents=True)
+    (lite_dir / "static" / "pyodide").mkdir(parents=True)
+    (lite_dir / "pypi").mkdir(parents=True)
+    (site_dir / ".nojekyll").write_text("", encoding="utf-8")
+    (site_dir / "index.html").write_text("<html></html>", encoding="utf-8")
+    (lite_dir / "lab" / "index.html").write_text("<html></html>", encoding="utf-8")
+    (lite_dir / "static" / "pyodide" / "pyodide.mjs").write_text("// runtime", encoding="utf-8")
+
+    lock_packages = {
+        package_name: {"name": package_name, "version": "1.0.0", "file_name": f"{package_name}.whl", "sha256": package_name}
+        for package_name in [
+            "python-dateutil",
+            "pandas",
+            "scikit-learn",
+            "comm",
+        ]
+    }
+    lock_text = json.dumps({"packages": lock_packages})
+    (lite_dir / "static" / "pyodide" / "pyodide-lock.json").write_text(lock_text, encoding="utf-8")
+    (lite_dir / "pypi" / "all.json").write_text(
+        json.dumps(
+            {
+                "comm": {
+                    "releases": {
+                        "0.2.3": [
+                            {
+                                "filename": "comm-0.2.3-py3-none-any.whl",
+                                "url": "./comm-0.2.3-py3-none-any.whl",
+                            }
+                        ]
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (lite_dir / "pypi" / "comm-0.2.3-py3-none-any.whl").write_text("", encoding="utf-8")
+    (lite_dir / "jupyter-lite.json").write_text(
+        json.dumps(
+            {
+                "jupyter-config-data": {
+                    "litePluginSettings": {
+                        "@jupyterlite/pyodide-kernel-extension:kernel": {
+                            "pyodideUrl": "./static/pyodide/pyodide.mjs",
+                            "pipliteUrls": [
+                                "./pypi/comm-0.2.3-py3-none-any.whl",
+                            ],
+                        }
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    validate_built_site(site_dir)

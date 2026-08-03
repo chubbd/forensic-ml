@@ -81,6 +81,38 @@ def lock_package_entry(lock_data: dict, package_name: str) -> dict:
     raise AssertionError(f"Missing required Pyodide package metadata for {package_name}")
 
 
+def discover_local_piplite_index_manifests(lite_dir: Path, piplite_urls: list[object]) -> list[Path]:
+    candidate_index_paths: list[Path] = []
+    for piplite_url in piplite_urls:
+        raw_value = str(piplite_url)
+        if not raw_value or is_http_url(raw_value):
+            continue
+        resolved_path = resolve_lite_asset_path(lite_dir, raw_value)
+        if resolved_path.suffix.lower() == ".json":
+            candidate_index_paths.append(resolved_path)
+    candidate_index_paths.extend(sorted((lite_dir / "pypi").glob("*.json")))
+    return list(dict.fromkeys(candidate_index_paths))
+
+
+def load_local_piplite_index_manifest(path: Path) -> dict:
+    index_data = load_json(path)
+    assert isinstance(index_data, dict), f"Invalid local piplite index manifest structure in {path}: expected JSON object"
+    return index_data
+
+
+def comm_releases_from_index(index_data: dict) -> list[dict]:
+    package_data = index_data.get(COMM_PACKAGE_NAME, {})
+    if not isinstance(package_data, dict):
+        return []
+    releases = package_data.get("releases", {})
+    if not isinstance(releases, dict):
+        return []
+    version_releases = releases.get(COMM_VERSION, [])
+    if not isinstance(version_releases, list):
+        return []
+    return [release for release in version_releases if isinstance(release, dict)]
+
+
 def pyodide_kernel_settings(config: dict) -> dict:
     return config.get("jupyter-config-data", {}).get("litePluginSettings", {}).get(PYODIDE_KERNEL_PLUGIN, {})
 
@@ -200,13 +232,7 @@ def validate_built_site(site_dir: Path) -> None:
     wheel_paths = sorted(lite_dir.rglob(COMM_WHEEL_FILENAME))
     assert wheel_paths, f"Missing bundled comm wheel in built JupyterLite output: {COMM_WHEEL_FILENAME}"
 
-    candidate_index_paths: list[Path] = []
-    for piplite_url in piplite_urls:
-        candidate_index_paths.append(resolve_lite_asset_path(lite_dir, str(piplite_url)))
-    if not candidate_index_paths:
-        candidate_index_paths.extend(sorted((lite_dir / "pypi").glob("*.json")))
-
-    candidate_index_paths = list(dict.fromkeys(candidate_index_paths))
+    candidate_index_paths = discover_local_piplite_index_manifests(lite_dir, piplite_urls)
     assert candidate_index_paths, f"Missing local piplite index manifest in built JupyterLite output under {lite_dir / 'pypi'}"
 
     for index_path in candidate_index_paths:
@@ -214,8 +240,8 @@ def validate_built_site(site_dir: Path) -> None:
 
     comm_reference_found = False
     for index_path in candidate_index_paths:
-        index_data = load_json(index_path)
-        comm_releases = index_data.get(COMM_PACKAGE_NAME, {}).get("releases", {}).get(COMM_VERSION, [])
+        index_data = load_local_piplite_index_manifest(index_path)
+        comm_releases = comm_releases_from_index(index_data)
         for release in comm_releases:
             if release.get("filename") != COMM_WHEEL_FILENAME:
                 continue
