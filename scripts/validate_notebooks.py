@@ -13,6 +13,11 @@ REQUIRED_PACKAGE_IMPORTS = [
     "import pandas as pd",
     "import sklearn",
 ]
+REQUIRED_PYODIDE_RUNTIME_PACKAGES = [
+    "python-dateutil",
+    "pandas",
+    "scikit-learn",
+]
 REQUIRED_VERSION_SNIPPETS = [
     "dateutil.__version__",
     "pd.__version__",
@@ -34,6 +39,32 @@ def validate_notebook(path: Path) -> None:
     assert any(cell.get("cell_type") == "code" for cell in cells), f"Notebook needs code cells: {path}"
     source_text = "\n".join("".join(cell.get("source", [])) for cell in cells)
     assert "piplite.install" not in source_text, f"Notebook should rely on preloaded Pyodide packages instead of piplite.install: {path}"
+
+    bootstrap_cell_index = None
+    for index, cell in enumerate(cells):
+        if cell.get("cell_type") != "code":
+            continue
+        cell_source = "".join(cell.get("source", []))
+        if "import pyodide_js" in cell_source and "await pyodide_js.loadPackage(" in cell_source:
+            bootstrap_cell_index = index
+            for package_name in REQUIRED_PYODIDE_RUNTIME_PACKAGES:
+                assert package_name in cell_source, f"Pyodide bootstrap is missing package '{package_name}' in {path}"
+            break
+    assert bootstrap_cell_index is not None, f"Notebook must include a Pyodide package bootstrap cell before imports: {path}"
+
+    first_required_import_cell_index = None
+    for index, cell in enumerate(cells):
+        if cell.get("cell_type") != "code":
+            continue
+        cell_source = "".join(cell.get("source", []))
+        if any(expected_import in cell_source for expected_import in REQUIRED_PACKAGE_IMPORTS):
+            first_required_import_cell_index = index
+            break
+    assert first_required_import_cell_index is not None, f"Notebook is missing required import cells: {path}"
+    assert bootstrap_cell_index < first_required_import_cell_index, (
+        f"Pyodide package bootstrap cell must run before dateutil/pandas/sklearn imports in {path}"
+    )
+
     for expected_snippet in [*REQUIRED_PACKAGE_IMPORTS, *REQUIRED_VERSION_SNIPPETS]:
         assert expected_snippet in source_text, f"Missing '{expected_snippet}' in {path}"
     if path.name == "forensic_classification_challenge.ipynb":
