@@ -82,8 +82,9 @@ def test_notebook_validation_requires_version_diagnostics(tmp_path) -> None:
                         "execution_count": None,
                         "outputs": [],
                         "source": [
-                            "import pyodide_js\n",
-                            "await pyodide_js.loadPackage(['python-dateutil', 'pandas', 'scikit-learn'])\n",
+                            "import pyodide\n",
+                            "await pyodide.load_package(['python-dateutil', 'pandas', 'scikit-learn'])\n",
+                            "print('Loaded Pyodide packages: python-dateutil, pandas, scikit-learn')\n",
                         ],
                     },
                     {
@@ -152,8 +153,56 @@ def test_notebook_validation_requires_pyodide_bootstrap_before_imports(tmp_path)
         raise AssertionError("validate_notebook should require a Pyodide package bootstrap cell before imports")
 
 
-def test_notebook_validation_accepts_preloaded_package_diagnostics(tmp_path) -> None:
-    notebook_path = tmp_path / "with_diagnostics.ipynb"
+def test_notebook_validation_requires_bootstrap_success_message(tmp_path) -> None:
+    notebook_path = tmp_path / "missing_bootstrap_message.ipynb"
+    notebook_path.write_text(
+        json.dumps(
+            {
+                "cells": [
+                    {"cell_type": "markdown", "metadata": {}, "source": ["# Example\n"]},
+                    {
+                        "cell_type": "code",
+                        "metadata": {},
+                        "execution_count": None,
+                        "outputs": [],
+                        "source": [
+                            "import pyodide\n",
+                            "await pyodide.load_package(['python-dateutil', 'pandas', 'scikit-learn'])\n",
+                        ],
+                    },
+                    {
+                        "cell_type": "code",
+                        "metadata": {},
+                        "execution_count": None,
+                        "outputs": [],
+                        "source": [
+                            "import dateutil\n",
+                            "import pandas as pd\n",
+                            "import sklearn\n",
+                            'print(f"python-dateutil {dateutil.__version__}")\n',
+                            'print(f"pandas {pd.__version__}")\n',
+                            'print(f"scikit-learn {sklearn.__version__}")\n',
+                        ],
+                    },
+                ],
+                "metadata": {},
+                "nbformat": 4,
+                "nbformat_minor": 5,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        validate_notebook(notebook_path)
+    except AssertionError as exc:
+        assert "visible success message" in str(exc)
+    else:
+        raise AssertionError("validate_notebook should require a visible bootstrap success message")
+
+
+def test_notebook_validation_rejects_javascript_side_pyodide_bootstrap(tmp_path) -> None:
+    notebook_path = tmp_path / "js_bootstrap.ipynb"
     notebook_path.write_text(
         json.dumps(
             {
@@ -167,6 +216,56 @@ def test_notebook_validation_accepts_preloaded_package_diagnostics(tmp_path) -> 
                         "source": [
                             "import pyodide_js\n",
                             "await pyodide_js.loadPackage(['python-dateutil', 'pandas', 'scikit-learn'])\n",
+                            "print('Loaded Pyodide packages: python-dateutil, pandas, scikit-learn')\n",
+                        ],
+                    },
+                    {
+                        "cell_type": "code",
+                        "metadata": {},
+                        "execution_count": None,
+                        "outputs": [],
+                        "source": [
+                            "import dateutil\n",
+                            "import pandas as pd\n",
+                            "import sklearn\n",
+                            'print(f\"python-dateutil {dateutil.__version__}\")\n',
+                            'print(f\"pandas {pd.__version__}\")\n',
+                            'print(f\"scikit-learn {sklearn.__version__}\")\n',
+                        ],
+                    },
+                ],
+                "metadata": {},
+                "nbformat": 4,
+                "nbformat_minor": 5,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        validate_notebook(notebook_path)
+    except AssertionError as exc:
+        assert "Python-side Pyodide loader" in str(exc)
+    else:
+        raise AssertionError("validate_notebook should reject pyodide_js.loadPackage bootstraps")
+
+
+def test_notebook_validation_accepts_python_side_pyodide_bootstrap(tmp_path) -> None:
+    notebook_path = tmp_path / "with_diagnostics.ipynb"
+    notebook_path.write_text(
+        json.dumps(
+            {
+                "cells": [
+                    {"cell_type": "markdown", "metadata": {}, "source": ["# Example\n"]},
+                    {
+                        "cell_type": "code",
+                        "metadata": {},
+                        "execution_count": None,
+                        "outputs": [],
+                        "source": [
+                            "import pyodide\n",
+                            "await pyodide.load_package(['python-dateutil', 'pandas', 'scikit-learn'])\n",
+                            "print('Loaded Pyodide packages: python-dateutil, pandas, scikit-learn')\n",
                         ],
                     },
                     {

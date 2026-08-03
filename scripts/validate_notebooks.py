@@ -18,6 +18,12 @@ REQUIRED_PYODIDE_RUNTIME_PACKAGES = [
     "pandas",
     "scikit-learn",
 ]
+REQUIRED_BOOTSTRAP_SUCCESS_SNIPPETS = [
+    "Loaded Pyodide packages:",
+    "python-dateutil",
+    "pandas",
+    "scikit-learn",
+]
 REQUIRED_VERSION_SNIPPETS = [
     "dateutil.__version__",
     "pd.__version__",
@@ -39,16 +45,23 @@ def validate_notebook(path: Path) -> None:
     assert any(cell.get("cell_type") == "code" for cell in cells), f"Notebook needs code cells: {path}"
     source_text = "\n".join("".join(cell.get("source", [])) for cell in cells)
     assert "piplite.install" not in source_text, f"Notebook should rely on preloaded Pyodide packages instead of piplite.install: {path}"
+    assert "pyodide_js.loadPackage(" not in source_text, (
+        f"Notebook must use the Python-side Pyodide loader, not pyodide_js.loadPackage, in {path}"
+    )
 
     bootstrap_cell_index = None
     for index, cell in enumerate(cells):
         if cell.get("cell_type") != "code":
             continue
         cell_source = "".join(cell.get("source", []))
-        if "import pyodide_js" in cell_source and "await pyodide_js.loadPackage(" in cell_source:
+        if "import pyodide" in cell_source and "await pyodide.load_package(" in cell_source:
             bootstrap_cell_index = index
             for package_name in REQUIRED_PYODIDE_RUNTIME_PACKAGES:
                 assert package_name in cell_source, f"Pyodide bootstrap is missing package '{package_name}' in {path}"
+            for expected_snippet in REQUIRED_BOOTSTRAP_SUCCESS_SNIPPETS:
+                assert expected_snippet in cell_source, (
+                    f"Pyodide bootstrap must print a visible success message after loading in {path}"
+                )
             break
     assert bootstrap_cell_index is not None, f"Notebook must include a Pyodide package bootstrap cell before imports: {path}"
 
